@@ -1,10 +1,10 @@
 name: Daily VIX Alert
 
 on:
+  workflow_dispatch:
   schedule:
     # Runs daily at 07:30 UTC
     - cron: '30 07 * * *'
-  workflow_dispatch: {}
 
 jobs:
   run:
