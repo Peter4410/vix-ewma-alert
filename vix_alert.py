@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-vix_alert.py — Downloads VIX, computes EWMA(λ=0.95), and sends Telegram message.
+vix_alert.py — Downloads VIX, computes EWMA(λ=0.97), and sends Telegram message.
 """
 
 import os
@@ -37,7 +37,7 @@ def fetch_vix(start_date=DEFAULT_START):
                 raise
 
 
-def compute_ewma(series, lambda_=0.95):
+def compute_ewma(series, lambda_=0.97):
     alpha = 1 - lambda_
     return series.ewm(alpha=alpha, adjust=False).mean()
 
@@ -48,7 +48,7 @@ def create_message(date_str, vix_val, ewma_val, above):
         if above
         else "🟢 VIX BELOW EWMA — Favorable for short-vol trades (per Sinclair)."
     )
-    return f"📅 {date_str}\nVIX: {vix_val:.2f}\nEWMA(λ=0.95): {ewma_val:.2f}\n\n{status}"
+    return f"📅 {date_str}\nVIX: {vix_val:.2f}\nEWMA(λ=0.97): {ewma_val:.2f}\n\n{status}"
 
 
 def send_telegram(bot_token, chat_id, text):
@@ -107,3 +107,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
