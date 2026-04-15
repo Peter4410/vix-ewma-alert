@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-vix_alert.py — Downloads VIX, computes EWMA(λ=0.97), and sends Telegram message.
+vix_alert.py — Downloads VIX, computes EWMA(λ=0.97) and EWMA(λ=0.95), and sends Telegram message.
 """
 
 import os
@@ -42,13 +42,26 @@ def compute_ewma(series, lambda_=0.97):
     return series.ewm(alpha=alpha, adjust=False).mean()
 
 
-def create_message(date_str, vix_val, ewma_val, above):
-    status = (
-        "🔴 VIX ABOVE EWMA — Risk conditions elevated."
-        if above
-        else "🟢 VIX BELOW EWMA — Favorable for short-vol trades (per Sinclair)."
+def _signal_line(label, vix_val, ewma_val):
+    icon = "🟢" if vix_val < ewma_val else "🔴"
+    direction = "below" if vix_val < ewma_val else "above"
+    return f"{icon} VIX {direction} EWMA(λ={label}): {ewma_val:.2f}"
+
+
+def create_message(date_str, vix_val, ewma97, ewma95):
+    both_below = vix_val < ewma97 and vix_val < ewma95
+    summary = (
+        "\n✅ Both EWMAs confirm: favorable for short-vol trades (per Sinclair)."
+        if both_below
+        else "\n⚠️ VIX elevated vs at least one EWMA — exercise caution."
     )
-    return f"📅 {date_str}\nVIX: {vix_val:.2f}\nEWMA(λ=0.97): {ewma_val:.2f}\n\n{status}"
+    return (
+        f"📅 {date_str}\n"
+        f"VIX: {vix_val:.2f}\n\n"
+        f"{_signal_line('0.97', vix_val, ewma97)}\n"
+        f"{_signal_line('0.95', vix_val, ewma95)}"
+        f"{summary}"
+    )
 
 
 def send_telegram(bot_token, chat_id, text):
@@ -77,9 +90,10 @@ def main():
 
     try:
         vix = fetch_vix()
-        vix_ewma = compute_ewma(vix)
-        df = pd.concat([vix, vix_ewma], axis=1)
-        df.columns = ["VIX", "VIX_EWMA"]
+        ewma97 = compute_ewma(vix, lambda_=0.97)
+        ewma95 = compute_ewma(vix, lambda_=0.95)
+        df = pd.concat([vix, ewma97, ewma95], axis=1)
+        df.columns = ["VIX", "EWMA97", "EWMA95"]
         df = df.dropna()
         if df.empty:
             raise RuntimeError("Resulting DataFrame empty after dropping NA")
@@ -87,10 +101,10 @@ def main():
         latest = df.iloc[-1]
         date_str = latest.name.strftime("%Y-%m-%d")
         vix_val = float(latest["VIX"])
-        ewma_val = float(latest["VIX_EWMA"])
-        above = int(vix_val > ewma_val)
+        ewma97_val = float(latest["EWMA97"])
+        ewma95_val = float(latest["EWMA95"])
 
-        message = create_message(date_str, vix_val, ewma_val, above)
+        message = create_message(date_str, vix_val, ewma97_val, ewma95_val)
         logging.info("Prepared message for %s", date_str)
 
         send_telegram(bot_token, chat_id, message)
